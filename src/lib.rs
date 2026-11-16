@@ -1,4 +1,4 @@
-use log::info;
+use std::{env, fs, io, path::PathBuf};
 
 pub fn find_matches(
     content: &str,
@@ -13,6 +13,14 @@ pub fn find_matches(
     Ok(())
 }
 
-pub fn get_configuration() {
-    info!("Information command")
+pub fn config_dir() -> io::Result<PathBuf> {
+    let home = env::var_os("HOME")
+        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "HOME is not set"))?;
+    Ok(PathBuf::from(home).join(".config/slipway"))
+}
+
+pub fn configure_app() -> Result<(), std::io::Error> {
+    let config_directory = config_dir()?;
+    fs::create_dir_all(config_directory.as_path())?;
+    Ok(())
 }
