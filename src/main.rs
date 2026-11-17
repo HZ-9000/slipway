@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 use log::info;
-use slipway::{config_dir, configure_app};
+use slipway::configure_app;
 
 #[derive(Parser)]
 #[command(author, version, about)]
@@ -14,8 +14,6 @@ enum Commands {
     Configure {
         #[arg(short, long)]
         init: bool,
-        #[arg(short, long)]
-        get: bool,
     },
 }
 
@@ -25,14 +23,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let cli = Cli::parse();
 
-    // You can check for the existence of subcommands, and if found use their
-    // matches just as you would the top level cmd
     match cli.command {
-        Commands::Configure { init, get } => {
+        Commands::Configure { init } => {
             if init {
                 configure_app()?;
-            } else if get {
-                config_dir()?;
             } else {
                 println!("Unknown Command");
             }
