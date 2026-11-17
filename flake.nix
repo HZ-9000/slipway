@@ -23,6 +23,11 @@
             nativeBuildInputs = [
               pkgs.pkg-config
               pkgs.rustPlatform.bindgenHook
+
+              pkgs.cargo
+              pkgs.rustc
+              pkgs.clippy
+              pkgs.rustfmt
             ];
 
             buildInputs = [ pkgs.nix ];
