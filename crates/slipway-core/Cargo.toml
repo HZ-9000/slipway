@@ -1,0 +1,11 @@
+[package]
+name = "slipway-core"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.104"
+nix-bindings = { version = "0.2352.0", default-features = false, features = [
+    "store",
+    "flake",
+] }

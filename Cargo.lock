@@ -1751,10 +1751,18 @@ dependencies = [
  "crossterm",
  "env_logger",
  "log",
- "nix-bindings",
  "predicates",
  "ratatui",
+ "slipway-core",
  "tempfile",
+]
+
+[[package]]
+name = "slipway-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "nix-bindings",
 ]
 
 [[package]]

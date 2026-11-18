@@ -1,3 +1,6 @@
+[workspace]
+members = ["crates/slipway-core"]
+
 [package]
 name = "slipway"
 version = "0.1.0"
@@ -10,11 +13,8 @@ color-eyre = "0.6.5"
 crossterm = "0.29.0"
 env_logger = "0.11.11"
 log = "0.4.35"
-nix-bindings = { version = "0.2352.0", default-features = false, features = [
-    "store",
-    "flake",
-] }
 ratatui = "0.30.2"
+slipway-core = { path = "crates/slipway-core" }
 
 [dev-dependencies]
 assert_cmd = "2.0.14"

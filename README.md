@@ -3,10 +3,17 @@ a GUI/TUI for building and configuring NixOS flakes for installation.
 
 ## Usage 
 
-List Something!
 ```
-slipway test --list
+slipway detect             # show which versions of Nix slipway can find
+slipway add <package>      # add a package (not built yet)
+slipway remove <package>   # remove a package (not built yet)
+slipway list               # list your packages (not built yet)
+slipway check              # check your setup for problems (not built yet)
+slipway configure --init   # create ~/.config/slipway
 ```
+
+All logic lives in the `slipway-core` crate (`crates/slipway-core`); the
+`slipway` binary is a thin CLI over it so the TUI and GUI can share it.
 
 ## Development
 
@@ -15,7 +22,7 @@ Nix's `dev` output and libclang. The flake provides them:
 
 ```
 nix develop
-cargo build
+cargo build --workspace
 ```
 
 Building outside the dev shell fails in `nix-bindings-sys`'s build script

@@ -20,13 +20,56 @@ fn requires_a_subcommand() {
 }
 
 #[test]
-fn help_lists_the_configure_subcommand() {
-    Command::cargo_bin("slipway")
+fn help_lists_every_subcommand() {
+    let output = Command::cargo_bin("slipway")
         .unwrap()
         .arg("--help")
-        .assert()
-        .success()
-        .stdout(contains("configure"));
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let help = String::from_utf8_lossy(&output.stdout);
+
+    for subcommand in ["detect", "add", "remove", "list", "check", "configure"] {
+        assert!(
+            help.contains(subcommand),
+            "--help is missing `{subcommand}`:\n{help}"
+        );
+    }
+}
+
+#[test]
+fn help_avoids_unexplained_nix_jargon() {
+    let mut text = String::new();
+    for args in [
+        vec!["--help"],
+        vec!["detect", "--help"],
+        vec!["add", "--help"],
+        vec!["remove", "--help"],
+        vec!["list", "--help"],
+        vec!["check", "--help"],
+        vec!["configure", "--help"],
+    ] {
+        let output = Command::cargo_bin("slipway")
+            .unwrap()
+            .args(&args)
+            .output()
+            .unwrap();
+        text.push_str(&String::from_utf8_lossy(&output.stdout).to_lowercase());
+    }
+
+    for jargon in [
+        "flake",
+        "derivation",
+        "attribute",
+        "nixpkgs",
+        "store",
+        "closure",
+    ] {
+        assert!(
+            !text.contains(jargon),
+            "--help mentions `{jargon}`:\n{text}"
+        );
+    }
 }
 
 #[test]
@@ -49,14 +92,14 @@ fn rejects_an_unknown_subcommand() {
 }
 
 #[test]
-fn configure_without_init_does_nothing() {
+fn configure_without_init_is_rejected() {
     let home = TempDir::new().unwrap();
 
     slipway_with_home(&home)
         .arg("configure")
         .assert()
-        .success()
-        .stdout(contains("Unknown Command"));
+        .failure()
+        .stderr(contains("--init"));
 
     assert!(
         !home.path().join(".config/slipway").exists(),
@@ -127,4 +170,68 @@ fn configure_init_fails_when_home_is_unset() {
         .assert()
         .failure()
         .stderr(contains("HOME is not set"));
+}
+
+#[test]
+fn detect_reports_nix_versions() {
+    Command::cargo_bin("slipway")
+        .unwrap()
+        .arg("detect")
+        .assert()
+        .success()
+        .stdout(contains("Nix (linked library):"))
+        .stdout(contains("Nix (on PATH):"))
+        .stdout(contains("Nix (store):"));
+}
+
+#[test]
+fn add_and_remove_require_a_package_name() {
+    for subcommand in ["add", "remove"] {
+        Command::cargo_bin("slipway")
+            .unwrap()
+            .arg(subcommand)
+            .assert()
+            .code(2)
+            .stderr(contains("<PACKAGE>"));
+    }
+}
+
+#[test]
+fn add_and_remove_reject_an_invalid_package_name_in_plain_language() {
+    for subcommand in ["add", "remove"] {
+        Command::cargo_bin("slipway")
+            .unwrap()
+            .args([subcommand, "fire fox"])
+            .assert()
+            .code(2)
+            .stderr(contains("package names can't contain spaces"));
+    }
+}
+
+#[test]
+fn stubbed_commands_say_they_are_not_available_yet() {
+    for args in [
+        vec!["add", "firefox"],
+        vec!["remove", "python3Packages.requests"],
+        vec!["list"],
+        vec!["check"],
+    ] {
+        Command::cargo_bin("slipway")
+            .unwrap()
+            .args(&args)
+            .assert()
+            .code(1)
+            .stderr(contains("isn't available in this version of slipway yet"));
+    }
+}
+
+#[test]
+fn commands_without_arguments_reject_extras() {
+    for subcommand in ["list", "check", "detect"] {
+        Command::cargo_bin("slipway")
+            .unwrap()
+            .args([subcommand, "extra"])
+            .assert()
+            .code(2);
+    }
 }
