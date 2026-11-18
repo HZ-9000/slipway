@@ -42,4 +42,3 @@ impl Nix {
         &self.context
     }
 }
-

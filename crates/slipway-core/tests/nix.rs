@@ -1,6 +1,6 @@
 //! Tests for the `nix` module and the config-path helper.
 
-use slipway::{
+use slipway_core::{
     config_dir,
     nix::{
         eval::{Nix, linked_version},
