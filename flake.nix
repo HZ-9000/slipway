@@ -21,8 +21,8 @@
         in
         {
           default = pkgs.rustPlatform.buildRustPackage {
-            pname = cargoToml.package.name;
-            inherit (cargoToml.package) version;
+            pname = "slipway";
+            inherit (cargoToml.workspace.package) version;
 
             src = ./.;
             cargoLock.lockFile = ./Cargo.lock;
