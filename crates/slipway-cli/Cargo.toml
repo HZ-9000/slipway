@@ -1,0 +1,20 @@
+[package]
+name = "slipway-cli"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "slipway"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0.104"
+clap = { version = "4.6.7", features = ["derive"] }
+env_logger = "0.11.11"
+log = "0.4.35"
+slipway-core = { path = "../slipway-core" }
+
+[dev-dependencies]
+assert_cmd = "2.0.14"
+predicates = "3.1.0"
+tempfile = "3.10"
