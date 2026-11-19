@@ -1,8 +1,12 @@
-use std::process::ExitCode;
+use std::{path::PathBuf, process::ExitCode};
 
 use clap::{Parser, Subcommand};
 use log::info;
-use slipway_core::{NixVersions, package::PackageName};
+use slipway_core::{
+    NixVersions,
+    package::PackageName,
+    system::{ChannelSource, ConfigKind, System},
+};
 
 /// Set up and manage the software installed on a NixOS computer.
 #[derive(Parser)]
@@ -14,8 +18,13 @@ struct Cli {
 
 #[derive(Subcommand, Debug, Clone)]
 enum Commands {
-    /// Show which versions of Nix (the package manager behind NixOS) slipway can find
-    Detect,
+    /// Show which NixOS this computer runs, where its system setup lives, and which
+    /// versions of Nix (the package manager behind NixOS) slipway can find
+    Detect {
+        /// Where your system setup is, if it isn't in /etc/nixos
+        #[arg(long, value_name = "PATH")]
+        config: Option<PathBuf>,
+    },
     /// Add a package (a piece of software) to your system setup
     Add {
         /// Name of the package, for example `firefox` or `python3Packages.requests`
@@ -55,7 +64,10 @@ fn main() -> ExitCode {
 
 fn run(command: Commands) -> anyhow::Result<()> {
     match command {
-        Commands::Detect => print_nix_versions(&slipway_core::detect()),
+        Commands::Detect { config } => {
+            print_system(&slipway_core::detect_system(config)?);
+            print_nix_versions(&slipway_core::detect());
+        }
         Commands::Add { package } => slipway_core::add(&package)?,
         Commands::Remove { package } => slipway_core::remove(&package)?,
         Commands::List => {
@@ -72,6 +84,49 @@ fn run(command: Commands) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+fn print_system(system: &System) {
+    let nixos = &system.nixos;
+    match &nixos.build {
+        Some(build) => println!(
+            "NixOS:                {} (build {build})",
+            nixos.pretty_name
+        ),
+        None => println!("NixOS:                {}", nixos.pretty_name),
+    }
+
+    let stability = if system.channel.is_unstable() {
+        "unstable"
+    } else {
+        "stable"
+    };
+    let source = match system.channel_source {
+        ChannelSource::FlakeLock => "from flake.lock",
+        ChannelSource::BuildVersion => "from the NixOS version",
+    };
+    println!(
+        "Channel:              {} ({stability}, {source})",
+        system.channel
+    );
+
+    let kind = match system.config.kind {
+        ConfigKind::Flake => "flake",
+        ConfigKind::ConfigurationNix => "configuration.nix, no flake",
+    };
+    println!(
+        "System config:        {} ({kind})",
+        system.config.entry.display()
+    );
+
+    let on_off = |enabled| if enabled { "enabled" } else { "not enabled" };
+    match &system.features {
+        Ok(features) => {
+            println!("nix-command:          {}", on_off(features.nix_command));
+            println!("flakes:               {}", on_off(features.flakes));
+        }
+        Err(err) => println!("Nix features:         unavailable ({err:#})"),
+    }
 }
 
 fn print_nix_versions(versions: &NixVersions) {

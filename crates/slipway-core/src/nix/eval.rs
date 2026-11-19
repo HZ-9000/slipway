@@ -42,3 +42,13 @@ impl Nix {
         &self.context
     }
 }
+
+/// The experimental features this machine's Nix settings turn on (from
+/// `nix.conf` and `NIX_CONFIG`), such as `nix-command` and `flakes`.
+pub fn experimental_features() -> Result<Vec<String>> {
+    let context = Context::new().context("creating Nix context")?;
+    let features = context
+        .get_setting("experimental-features")
+        .context("reading the experimental-features setting")?;
+    Ok(features.split_whitespace().map(str::to_owned).collect())
+}

@@ -172,16 +172,47 @@ fn configure_init_fails_when_home_is_unset() {
         .stderr(contains("HOME is not set"));
 }
 
+fn running_on_nixos() -> bool {
+    std::fs::read_to_string("/etc/os-release")
+        .is_ok_and(|text| text.lines().any(|line| line == "ID=nixos"))
+}
+
 #[test]
-fn detect_reports_nix_versions() {
-    Command::cargo_bin("slipway")
+fn detect_reports_the_system_on_nixos_and_refuses_elsewhere() {
+    let assert = Command::cargo_bin("slipway")
         .unwrap()
         .arg("detect")
+        .assert();
+
+    if running_on_nixos() {
+        assert
+            .success()
+            .stdout(contains("NixOS:"))
+            .stdout(contains("Channel:"))
+            .stdout(contains("System config:"))
+            .stdout(contains("flakes:"))
+            .stdout(contains("Nix (linked library):"));
+    } else {
+        assert
+            .code(1)
+            .stderr(contains("Slipway only works on NixOS"));
+    }
+}
+
+#[test]
+fn detect_accepts_a_config_path() {
+    let help = Command::cargo_bin("slipway")
+        .unwrap()
+        .args(["detect", "--help"])
+        .output()
+        .unwrap();
+    assert!(String::from_utf8_lossy(&help.stdout).contains("--config <PATH>"));
+
+    Command::cargo_bin("slipway")
+        .unwrap()
+        .args(["detect", "--config"])
         .assert()
-        .success()
-        .stdout(contains("Nix (linked library):"))
-        .stdout(contains("Nix (on PATH):"))
-        .stdout(contains("Nix (store):"));
+        .code(2);
 }
 
 #[test]

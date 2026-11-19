@@ -8,6 +8,7 @@ use anyhow::{Context as _, Result};
 pub mod config;
 pub mod nix;
 pub mod package;
+pub mod system;
 
 use package::PackageName;
 
@@ -42,6 +43,15 @@ pub fn detect() -> NixVersions {
         on_path: nix::install::nix_cli_version(),
         store: nix::eval::Nix::open().and_then(|nix| nix.store_version()),
     }
+}
+
+/// Works out which NixOS this is, where its system configuration lives and
+/// which Nix features are on. `config` points at the configuration when it
+/// isn't in the usual place.
+///
+/// Fails with [`system::NotNixos`] when this computer isn't running NixOS.
+pub fn detect_system(config: Option<PathBuf>) -> Result<system::System> {
+    system::Probe::new(config).system()
 }
 
 pub fn add(_package: &PackageName) -> Result<()> {

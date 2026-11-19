@@ -4,7 +4,7 @@ a GUI/TUI for building and configuring NixOS flakes for installation.
 ## Usage 
 
 ```
-slipway detect             # show which versions of Nix slipway can find
+slipway detect             # show the NixOS version, channel, system config and Nix features
 slipway add <package>      # add a package (not built yet)
 slipway remove <package>   # remove a package (not built yet)
 slipway list               # list your packages (not built yet)

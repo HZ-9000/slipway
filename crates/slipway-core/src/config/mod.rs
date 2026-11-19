@@ -168,6 +168,13 @@ impl Channel {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    /// Whether this channel follows nixpkgs' development branch rather than
+    /// a numbered release, as `nixos-unstable` and `nixpkgs-unstable` do.
+    #[must_use]
+    pub fn is_unstable(&self) -> bool {
+        self.0.split('-').any(|part| part == "unstable")
+    }
 }
 
 impl fmt::Display for Channel {

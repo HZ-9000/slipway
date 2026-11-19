@@ -9,6 +9,7 @@ nix-bindings = { version = "0.2352.0", default-features = false, features = [
     "store",
     "flake",
 ] }
+serde_json = "1"
 
 [dev-dependencies]
 tempfile = "3.10"
