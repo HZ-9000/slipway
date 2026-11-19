@@ -160,6 +160,22 @@ fn configure_init_probes_both_nix_sources() {
         .stdout(contains("Nix (store):"));
 }
 
+/// Slipway asks the `nix` command for everything, so a machine without one
+/// has to be told that plainly rather than shown a crash.
+#[test]
+fn says_which_nix_sources_are_unreachable_without_nix_on_path() {
+    let home = TempDir::new().unwrap();
+
+    slipway_with_home(&home)
+        .env("PATH", "")
+        .args(["configure", "--init"])
+        .assert()
+        .success()
+        .stdout(contains("Nix (on PATH):        unavailable"))
+        .stdout(contains("is nix on PATH?"))
+        .stdout(contains("Nix (store):          unavailable"));
+}
+
 #[test]
 fn configure_init_fails_when_home_is_unset() {
     Command::cargo_bin("slipway")
