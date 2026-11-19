@@ -29,12 +29,8 @@
             src = ./.;
             cargoLock.lockFile = ./Cargo.lock;
 
-            nativeBuildInputs = [
-              pkgs.pkg-config
-              pkgs.rustPlatform.bindgenHook
-            ];
-
-            buildInputs = [ pkgs.nix ];
+            # Slipway shells out to whatever `nix` is on PATH, so it needs
+            # no Nix libraries to build and none at runtime either.
 
             # Tests run in CI via `cargo test`; the sandbox has no usable Nix store or $HOME.
             doCheck = false;
@@ -56,18 +52,17 @@
         {
           default = pkgs.mkShell {
             nativeBuildInputs = [
-              pkgs.pkg-config
-              pkgs.rustPlatform.bindgenHook
-
               pkgs.cargo
               pkgs.rustc
               pkgs.clippy
               pkgs.rustfmt
 
               pkgs.nixfmt
-            ];
 
-            buildInputs = [ pkgs.nix ];
+              # Only so the tests have a `nix` to talk to; Slipway builds
+              # without it.
+              pkgs.nix
+            ];
           };
         }
       );

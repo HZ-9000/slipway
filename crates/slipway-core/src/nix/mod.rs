@@ -1,2 +1,2 @@
-pub mod eval;
-pub mod install;
+pub mod cli;
+pub mod settings;
