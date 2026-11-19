@@ -1,7 +1,7 @@
 use std::{fmt, str::FromStr};
 
 /// A validated package name, such as `firefox` or `python3Packages.requests`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PackageName(String);
 
 impl PackageName {
