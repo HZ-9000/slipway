@@ -5,6 +5,7 @@ use std::{env, fmt, fs, io, path::PathBuf};
 
 use anyhow::{Context as _, Result};
 
+pub mod config;
 pub mod nix;
 pub mod package;
 
