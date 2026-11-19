@@ -149,14 +149,13 @@ fn configure_init_is_idempotent() {
 }
 
 #[test]
-fn configure_init_probes_all_three_nix_sources() {
+fn configure_init_probes_both_nix_sources() {
     let home = TempDir::new().unwrap();
 
     slipway_with_home(&home)
         .args(["configure", "--init"])
         .assert()
         .success()
-        .stdout(contains("Nix (linked library):"))
         .stdout(contains("Nix (on PATH):"))
         .stdout(contains("Nix (store):"));
 }
@@ -191,7 +190,7 @@ fn detect_reports_the_system_on_nixos_and_refuses_elsewhere() {
             .stdout(contains("Channel:"))
             .stdout(contains("System config:"))
             .stdout(contains("flakes:"))
-            .stdout(contains("Nix (linked library):"));
+            .stdout(contains("Nix (on PATH):"));
     } else {
         assert
             .code(1)

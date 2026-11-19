@@ -28,8 +28,6 @@ pub fn init_config_dir() -> Result<PathBuf> {
 
 /// The Nix versions slipway can see; they need not agree.
 pub struct NixVersions {
-    /// The Nix library slipway was built against.
-    pub linked: &'static str,
     /// The `nix` command on `PATH`.
     pub on_path: Result<String>,
     /// The Nix daemon/store this machine uses.
@@ -39,9 +37,8 @@ pub struct NixVersions {
 #[must_use]
 pub fn detect() -> NixVersions {
     NixVersions {
-        linked: nix::eval::linked_version(),
-        on_path: nix::install::nix_cli_version(),
-        store: nix::eval::Nix::open().and_then(|nix| nix.store_version()),
+        on_path: nix::cli::nix_cli_version(),
+        store: nix::cli::store_version(),
     }
 }
 

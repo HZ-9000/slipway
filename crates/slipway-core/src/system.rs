@@ -161,8 +161,8 @@ impl Probe {
         let nixos = self.nixos()?;
         let config = self.system_config()?;
         let (channel, channel_source) = channel(&nixos, &config)?;
-        let features =
-            nix::eval::experimental_features().map(|enabled| NixFeatures::from_enabled(&enabled));
+        let features = nix::settings::experimental_features(&self.root)
+            .map(|enabled| NixFeatures::from_enabled(&enabled));
 
         Ok(System {
             nixos,

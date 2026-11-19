@@ -130,8 +130,6 @@ fn print_system(system: &System) {
 }
 
 fn print_nix_versions(versions: &NixVersions) {
-    println!("Nix (linked library): {}", versions.linked);
-
     match &versions.on_path {
         Ok(version) => println!("Nix (on PATH):        {version}"),
         Err(err) => println!("Nix (on PATH):        unavailable ({err:#})"),

@@ -17,17 +17,18 @@ All logic lives in the `slipway-core` crate (`crates/slipway-core`); the
 
 ## Development
 
-Slipway links against Nix's C API, so `cargo build` needs `pkg-config`,
-Nix's `dev` output and libclang. The flake provides them:
+Slipway is plain Rust with no system dependencies:
 
 ```
-nix develop
 cargo build --workspace
+cargo test --workspace
 ```
 
-Building outside the dev shell fails in `nix-bindings-sys`'s build script
-with `Unable to find .pc file for nix-store-c`.
+`nix develop` gives you the pinned toolchain plus a `nix` for the tests to
+talk to, but it isn't required.
 
-The Nix pinned in `flake.nix` is what the binary links against, which need
-not match the Nix on a user's machine — `slipway configure --init` prints
-all three versions it can see.
+Slipway drives Nix through its command line rather than linking its C API.
+That keeps one binary working against whatever Nix a machine has: the C
+libraries carry the full version in their SONAME (`libnixstorec.so.2.35.6`)
+and wrap C++ with no stable ABI, so linking them would pin Slipway to a
+single Nix patch release.

@@ -43,6 +43,12 @@ fn probe(root: &TempDir) -> Probe {
     }
 }
 
+/// `NIX_CONFIG` outranks the configuration files, so the feature tests
+/// can't speak for a shell that sets it.
+fn host_sets_nix_config() -> bool {
+    std::env::var_os("NIX_CONFIG").is_some_and(|value| !value.is_empty())
+}
+
 fn touch(path: &Path) {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(path, "{ }\n").unwrap();
@@ -336,15 +342,48 @@ fn picks_nix_command_and_flakes_out_of_the_feature_list() {
 }
 
 #[test]
-fn reads_this_machines_nix_features() {
+fn reads_nix_features_from_the_systems_nix_conf() {
+    if host_sets_nix_config() {
+        return;
+    }
+    let root = root_with(STABLE);
+    touch(&root.path().join("etc/nixos/configuration.nix"));
+    let conf = root.path().join("etc/nix/nix.conf");
+    fs::create_dir_all(conf.parent().unwrap()).unwrap();
+    fs::write(&conf, "experimental-features = nix-command flakes\n").unwrap();
+
+    let system = probe(&root).system().unwrap();
+
+    assert_eq!(
+        system.features.expect("the fixture nix.conf is readable"),
+        NixFeatures {
+            nix_command: true,
+            flakes: true
+        }
+    );
+}
+
+/// A stock NixOS has no experimental features on, which Slipway reports
+/// rather than treating as a failure.
+#[test]
+fn reports_nix_features_as_off_when_nothing_turns_them_on() {
+    if host_sets_nix_config() {
+        return;
+    }
     let root = root_with(STABLE);
     touch(&root.path().join("etc/nixos/configuration.nix"));
 
     let system = probe(&root).system().unwrap();
 
-    system
-        .features
-        .expect("Nix's settings should be readable wherever the tests run");
+    assert_eq!(
+        system
+            .features
+            .expect("a missing nix.conf is not a failure"),
+        NixFeatures {
+            nix_command: false,
+            flakes: false
+        }
+    );
 }
 
 #[test]
