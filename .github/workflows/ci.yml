@@ -22,11 +22,20 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # The NixOS VM tests in `nix flake check` crawl without KVM, which the
+      # runner has but doesn't let unprivileged users open.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
       - name: Install Nix
         uses: cachix/install-nix-action@v31
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
+            system-features = nixos-test benchmark big-parallel kvm
 
       - name: Cache cargo registry and build artifacts
         uses: actions/cache@v4

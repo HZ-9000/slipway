@@ -27,6 +27,13 @@ cargo test --workspace
 `nix develop` gives you the pinned toolchain plus a `nix` for the tests to
 talk to, but it isn't required.
 
+`nix flake check` also boots NixOS VMs and runs Slipway against the fixture
+configurations in `tests/vm/fixtures`. Those checks need a Linux builder
+(with KVM, or they're very slow), so on macOS `nix flake check` skips them;
+run one directly with `nix build .#checks.x86_64-linux.vm-fresh-flake -L`.
+Fixtures are snapshots of a real `/etc/nixos`, so leave their formatting as
+a person or `nixos-generate-config` would have written it.
+
 Slipway drives Nix through its command line rather than linking its C API.
 That keeps one binary working against whatever Nix a machine has: the C
 libraries carry the full version in their SONAME (`libnixstorec.so.2.35.6`)
