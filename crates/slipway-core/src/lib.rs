@@ -9,6 +9,7 @@ pub mod config;
 pub mod nix;
 pub mod package;
 pub mod system;
+pub mod wire;
 
 use package::PackageName;
 
@@ -49,6 +50,21 @@ pub fn detect() -> NixVersions {
 /// Fails with [`system::NotNixos`] when this computer isn't running NixOS.
 pub fn detect_system(config: Option<PathBuf>) -> Result<system::System> {
     system::Probe::new(config).system()
+}
+
+/// Plans the one edit that connects the system configuration to Slipway's
+/// managed folder, or `None` if it's already connected.
+///
+/// Fails with [`wire::CantWire`] when the configuration is too unusual to
+/// edit safely.
+pub fn plan_connection(system: &system::System) -> Result<Option<wire::Wiring>> {
+    wire::plan(&system.config, &config::managed_dir())
+}
+
+/// Writes Slipway's managed folder if it's missing, then makes the planned
+/// edit.
+pub fn connect(system: &system::System, wiring: Option<&wire::Wiring>) -> Result<()> {
+    wire::connect(system, &config::managed_dir(), wiring)
 }
 
 pub fn add(_package: &PackageName) -> Result<()> {

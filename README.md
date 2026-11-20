@@ -5,6 +5,7 @@ a GUI/TUI for building and configuring NixOS flakes for installation.
 
 ```
 slipway detect             # show the NixOS version, channel, system config and Nix features
+slipway connect            # connect your system config to Slipway (shows the change, asks first)
 slipway add <package>      # add a package (not built yet)
 slipway remove <package>   # remove a package (not built yet)
 slipway list               # list your packages (not built yet)
