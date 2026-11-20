@@ -38,9 +38,23 @@
         }
       );
 
-      checks = forAllSystems (system: {
-        package = self.packages.${system}.default;
-      });
+      checks = forAllSystems (
+        system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+        in
+        {
+          package = self.packages.${system}.default;
+        }
+        # The VM tests boot NixOS, so they need a Linux builder (with KVM to
+        # run at a usable speed).
+        // nixpkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux (
+          import ./tests/vm {
+            inherit pkgs nixpkgs;
+            slipway = self.packages.${system}.default;
+          }
+        )
+      );
 
       formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixfmt);
 
