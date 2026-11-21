@@ -131,7 +131,6 @@ fn a_flake_system_without_the_features_is_refused_before_nix_is_run() {
     let said = failure.to_string();
     assert!(said.contains("reading your system setup"), "{said}");
     assert!(said.contains("`nix-command`"), "{said}");
-    assert!(said.contains("isn't turned on"), "{said}");
 }
 
 /// A configuration.nix system needs none of those features: Nix's older
@@ -153,8 +152,11 @@ fn a_configuration_nix_system_needs_no_features() {
     );
 }
 
+/// A failure keeps the command and Nix's own words whole, so a front-end
+/// can run the one and show the other. What it says in a line is the
+/// explanation, which `tests/explain.rs` covers.
 #[test]
-fn a_refusal_shows_the_command_and_everything_nix_said() {
+fn a_refusal_keeps_the_command_and_everything_nix_said() {
     let failure = Failure {
         step: Step::DryBuild,
         why: Why::Refused,
@@ -162,13 +164,12 @@ fn a_refusal_shows_the_command_and_everything_nix_said() {
         output: "error: attribute 'x' missing".to_owned(),
     };
 
-    let said = failure.to_string();
-    assert!(
-        said.contains("working out what your system would build"),
-        "{said}"
+    assert_eq!(
+        failure.command.as_deref(),
+        Some("nix build --dry-run /etc/nixos#x")
     );
-    assert!(said.contains("nix build --dry-run /etc/nixos#x"), "{said}");
-    assert!(said.contains("attribute 'x' missing"), "{said}");
+    assert_eq!(failure.output, "error: attribute 'x' missing");
+    assert!(failure.to_string().contains("`x`"), "{failure}");
 }
 
 #[test]

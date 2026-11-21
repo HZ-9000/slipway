@@ -62,7 +62,7 @@ in
   # nothing to do; `evaluates()` checks NixOS can evaluate /etc/nixos
   # (without building it); `packages()` returns what `slipway list` shows;
   # `checks()` runs `slipway check`, which evaluates and dry-builds the whole
-  # configuration.
+  # configuration and must leave the running system alone.
   testScript,
 }:
 
@@ -144,11 +144,15 @@ pkgs.testers.runNixOSTest {
 
 
       def checks() -> None:
+          # Checking is allowed to read anything and change nothing, least
+          # of all the system this machine is running.
+          running = machine.succeed("readlink /run/current-system")
           report = machine.succeed("slipway check")
           assert "Everything checks out." in report, report
           # The dry build says what a rebuild would do, and the report
           # repeats it in brackets after the check it came from.
           assert "ready to build (" in report, report
+          assert machine.succeed("readlink /run/current-system") == running
 
 
       ${if builtins.isFunction testScript then testScript args else testScript}
