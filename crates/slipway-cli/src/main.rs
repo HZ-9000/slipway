@@ -158,7 +158,10 @@ fn check(config: Option<PathBuf>) -> anyhow::Result<()> {
     println!("Checking {}:", system.config.entry.display());
     for check in report.checks() {
         match &check.outcome {
-            Outcome::Passed => println!("  ok       {}", check.what),
+            Outcome::Passed => match &check.note {
+                Some(note) => println!("  ok       {} ({note})", check.what),
+                None => println!("  ok       {}", check.what),
+            },
             Outcome::Failed(problem) => {
                 println!("  PROBLEM  {}", check.what);
                 for line in format!("{problem:#}").lines() {

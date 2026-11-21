@@ -11,6 +11,7 @@ use anyhow::{Context as _, Result, bail};
 
 use crate::{
     config,
+    nix::eval::Target,
     package::{Holds, PackageName, PackageSet},
     state::State,
     system::System,
@@ -120,12 +121,18 @@ pub struct Check {
     /// What was looked at, as something to show the user.
     pub what: &'static str,
     pub outcome: Outcome,
+    /// Something more that was learned on the way, such as what a dry build
+    /// would build. Worth showing beside a check that passed.
+    pub note: Option<String>,
 }
 
 #[derive(Debug)]
 pub enum Outcome {
     Passed,
-    /// What is wrong, and what the user can do about it.
+    /// What is wrong, and what the user can do about it. A problem Nix
+    /// reported is a [`crate::nix::eval::Failure`] underneath, so a
+    /// front-end that wants the parts of it — which step, why, what Nix
+    /// said — can ask for them with `downcast_ref`.
     Failed(anyhow::Error),
     /// Not looked at, because something earlier went wrong.
     NotChecked,
@@ -154,13 +161,20 @@ impl Report {
 
     /// Records one outcome, and says whether to carry on.
     fn ran(&mut self, what: &'static str, result: Result<()>) -> bool {
+        self.ran_with(what, result.map(|()| None))
+    }
+
+    /// The same, keeping whatever the check learned worth passing on.
+    fn ran_with(&mut self, what: &'static str, result: Result<Option<String>>) -> bool {
         let passed = result.is_ok();
+        let (outcome, note) = match result {
+            Ok(note) => (Outcome::Passed, note),
+            Err(err) => (Outcome::Failed(err), None),
+        };
         self.checks.push(Check {
             what,
-            outcome: match result {
-                Ok(()) => Outcome::Passed,
-                Err(err) => Outcome::Failed(err),
-            },
+            outcome,
+            note,
         });
         passed
     }
@@ -171,6 +185,7 @@ impl Report {
             self.checks.push(Check {
                 what,
                 outcome: Outcome::NotChecked,
+                note: None,
             });
         }
         self
@@ -202,18 +217,26 @@ pub fn check(dir: &Path, system: &System) -> Report {
 
     // Both of the questions left are about the same configuration, and
     // working out how to ask them costs a question of its own.
-    let target = match crate::nix::eval::Target::for_system(system) {
+    let target = match Target::for_system(system) {
         Ok(target) => target,
-        Err(err) => {
-            report.ran(READS, Err(err));
+        Err(failure) => {
+            report.ran(READS, Err(failure.into()));
             return report.rest();
         }
     };
 
-    if !report.ran(READS, target.evaluate()) {
+    let read = target.evaluate().map(drop).map_err(anyhow::Error::from);
+    if !report.ran(READS, read) {
         return report.rest();
     }
-    report.ran(BUILDS, target.dry_build());
+
+    // What a dry build would build is worth repeating: it is the nearest
+    // thing to a preview of the rebuild the user is about to run.
+    let built = target
+        .dry_build()
+        .map(|planned| Some(planned.to_string()))
+        .map_err(anyhow::Error::from);
+    report.ran_with(BUILDS, built);
     report
 }
 

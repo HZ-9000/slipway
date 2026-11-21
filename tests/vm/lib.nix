@@ -146,6 +146,9 @@ pkgs.testers.runNixOSTest {
       def checks() -> None:
           report = machine.succeed("slipway check")
           assert "Everything checks out." in report, report
+          # The dry build says what a rebuild would do, and the report
+          # repeats it in brackets after the check it came from.
+          assert "ready to build (" in report, report
 
 
       ${if builtins.isFunction testScript then testScript args else testScript}

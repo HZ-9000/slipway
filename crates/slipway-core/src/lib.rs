@@ -95,6 +95,21 @@ pub fn list(system: &System) -> Result<Vec<PackageName>> {
     managed::packages(&managed_dir(system), system)
 }
 
+/// Checks Nix can read the user's whole system setup, building nothing,
+/// and hands back what it came to.
+///
+/// [`check`] asks this and [`dry_build`] together, which is cheaper than
+/// asking for them one at a time: each call works out afresh how to ask.
+pub fn evaluate(system: &System) -> Result<nix::eval::Evaluated, nix::eval::Failure> {
+    nix::eval::Target::for_system(system)?.evaluate()
+}
+
+/// Works out everything the system would build, building none of it, and
+/// hands back what a rebuild would do.
+pub fn dry_build(system: &System) -> Result<nix::eval::Planned, nix::eval::Failure> {
+    nix::eval::Target::for_system(system)?.dry_build()
+}
+
 /// Looks over the whole setup, changing none of it.
 #[must_use]
 pub fn check(system: &System) -> Report {
