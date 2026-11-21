@@ -12,13 +12,19 @@ use crate::package::PackageName;
 mod generate;
 mod value;
 
-pub use generate::{MANAGED_MARKER, ManagedFile};
+pub use generate::{MANAGED_MARKER, ManagedFile, is_managed};
 pub use value::{AttrPath, NixValue};
-pub const MANAGED_DIR: &str = "/etc/nixos/slipway";
 
+/// What Slipway's folder is called. It sits beside the user's own system
+/// configuration so the two stay together: in git, in a backup, or on a
+/// copy of `/etc/nixos`.
+pub const MANAGED_NAME: &str = "slipway";
+
+/// Slipway's folder for a system configuration kept in `config_dir`, which
+/// on most computers makes `/etc/nixos/slipway`.
 #[must_use]
-pub fn managed_dir() -> PathBuf {
-    PathBuf::from(MANAGED_DIR)
+pub fn managed_dir(config_dir: &Path) -> PathBuf {
+    config_dir.join(MANAGED_NAME)
 }
 
 /// Everything Slipway has chosen for one system.

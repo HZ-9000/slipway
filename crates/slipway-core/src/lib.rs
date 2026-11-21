@@ -1,17 +1,21 @@
 //! Everything slipway does lives here, so the CLI, TUI and GUI are thin
 //! front-ends over the same logic. Nothing in this crate prints.
 
-use std::{env, fmt, fs, io, path::PathBuf};
+use std::{env, fs, io, path::PathBuf};
 
 use anyhow::{Context as _, Result};
 
 pub mod config;
+pub mod managed;
 pub mod nix;
 pub mod package;
+pub mod state;
 pub mod system;
 pub mod wire;
 
+use managed::{Change, Report};
 use package::PackageName;
+use system::System;
 
 pub fn config_dir() -> io::Result<PathBuf> {
     let home = env::var_os("HOME")
@@ -57,44 +61,48 @@ pub fn detect_system(config: Option<PathBuf>) -> Result<system::System> {
 ///
 /// Fails with [`wire::CantWire`] when the configuration is too unusual to
 /// edit safely.
-pub fn plan_connection(system: &system::System) -> Result<Option<wire::Wiring>> {
-    wire::plan(&system.config, &config::managed_dir())
+pub fn plan_connection(system: &System) -> Result<Option<wire::Wiring>> {
+    wire::plan(&system.config, &managed_dir(system))
 }
 
 /// Writes Slipway's managed folder if it's missing, then makes the planned
 /// edit.
-pub fn connect(system: &system::System, wiring: Option<&wire::Wiring>) -> Result<()> {
-    wire::connect(system, &config::managed_dir(), wiring)
+pub fn connect(system: &System, wiring: Option<&wire::Wiring>) -> Result<()> {
+    wire::connect(system, &managed_dir(system), wiring)
 }
 
-pub fn add(_package: &PackageName) -> Result<()> {
-    Err(NotImplemented("adding packages").into())
+/// Adds a package to the ones Slipway looks after on this computer, then
+/// writes the Nix that installs it.
+///
+/// Fails in plain language when the name isn't a package the computer's
+/// channel has.
+pub fn add(system: &System, package: &PackageName) -> Result<Change> {
+    let dir = managed_dir(system);
+    managed::require_in_use(&dir, system)?;
+    let available = nix::eval::Target::for_system(system)?;
+    managed::add(&dir, system, &available, package)
 }
 
-pub fn remove(_package: &PackageName) -> Result<()> {
-    Err(NotImplemented("removing packages").into())
+/// Takes a package off the ones Slipway looks after, then writes the Nix
+/// without it.
+pub fn remove(system: &System, package: &PackageName) -> Result<Change> {
+    managed::remove(&managed_dir(system), system, package)
 }
 
-pub fn list() -> Result<Vec<PackageName>> {
-    Err(NotImplemented("listing packages").into())
+/// The packages Slipway looks after on this computer. Packages the user's
+/// own configuration installs aren't Slipway's to list.
+pub fn list(system: &System) -> Result<Vec<PackageName>> {
+    managed::packages(&managed_dir(system), system)
 }
 
-pub fn check() -> Result<()> {
-    Err(NotImplemented("checking your setup").into())
+/// Looks over the whole setup, changing none of it.
+#[must_use]
+pub fn check(system: &System) -> Report {
+    managed::check(&managed_dir(system), system)
 }
 
-/// Returned by commands that exist in the interface but aren't built yet.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct NotImplemented(pub &'static str);
-
-impl fmt::Display for NotImplemented {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{} isn't available in this version of slipway yet",
-            self.0
-        )
-    }
+/// Slipway's folder on this computer, beside the system configuration it
+/// found.
+fn managed_dir(system: &System) -> PathBuf {
+    config::managed_dir(&system.config.dir)
 }
-
-impl std::error::Error for NotImplemented {}

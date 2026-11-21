@@ -12,7 +12,8 @@ pub struct ManagedFile {
     pub contents: String,
 }
 
-pub(super) fn is_managed(contents: &str) -> bool {
+/// Whether Slipway wrote this file, which it says in its first line.
+pub fn is_managed(contents: &str) -> bool {
     contents.lines().next() == Some(MANAGED_MARKER)
 }
 
