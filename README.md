@@ -6,12 +6,37 @@ a GUI/TUI for building and configuring NixOS flakes for installation.
 ```
 slipway detect             # show the NixOS version, channel, system config and Nix features
 slipway connect            # connect your system config to Slipway (shows the change, asks first)
-slipway add <package>      # add a package (not built yet)
-slipway remove <package>   # remove a package (not built yet)
-slipway list               # list your packages (not built yet)
-slipway check              # check your setup for problems (not built yet)
+slipway add <package>      # add a package, then rewrite the Nix that installs it
+slipway remove <package>   # remove a package slipway added
+slipway list               # list the packages slipway looks after, one per line
+slipway check              # check the setup, and that NixOS can still read and build it
 slipway configure --init   # create ~/.config/slipway
 ```
+
+Every command that reads the system takes `--config <path>` for a setup that
+isn't in `/etc/nixos`.
+
+## What slipway writes
+
+Slipway keeps everything it manages in a `slipway` folder beside your own
+system configuration, which is `/etc/nixos/slipway` on most computers:
+
+- `default.nix`, and `flake.nix` on a system built from a flake, is the
+  NixOS module it generates. Your configuration imports it (that one line is
+  what `slipway connect` adds), and slipway rewrites it whenever you change
+  something, so edits made there are lost.
+- `state.json` is the list of packages you asked for. It is the only file
+  there that isn't Nix, and the one `slipway list` reads. Keeping it beside
+  the generated Nix means the list travels with the configuration — in git,
+  in a backup, or on a copy of `/etc/nixos` — rather than living in one
+  user's home.
+
+`slipway add` asks Nix whether the name is a package before it writes
+anything, using the same package set the computer is built from, so a typo
+is refused there and then rather than left for the next rebuild to find.
+`slipway check` goes over the lot: the folder, the list, the Nix generated
+from it, the line that brings it in, and whether Nix can read and build the
+whole configuration.
 
 All logic lives in the `slipway-core` crate (`crates/slipway-core`); the
 `slipway` binary is a thin CLI over it so the TUI and GUI can share it.

@@ -60,7 +60,9 @@ in
   # `slipway detect` and returns its report as {label: value};
   # `connects()` runs `slipway connect` twice, checking the second run finds
   # nothing to do; `evaluates()` checks NixOS can evaluate /etc/nixos
-  # (without building it).
+  # (without building it); `packages()` returns what `slipway list` shows;
+  # `checks()` runs `slipway check`, which evaluates and dry-builds the whole
+  # configuration.
   testScript,
 }:
 
@@ -87,12 +89,26 @@ pkgs.testers.runNixOSTest {
     ];
     # Evaluating a whole NixOS system needs more than the default 1 GiB.
     virtualisation.memorySize = 3072;
-    nix.settings.experimental-features = lib.mkForce (
-      lib.optionals flakes [
-        "nix-command"
-        "flakes"
-      ]
-    );
+    nix.settings = {
+      experimental-features = lib.mkForce (
+        lib.optionals flakes [
+          "nix-command"
+          "flakes"
+        ]
+      );
+
+      # `nix --offline` written out as settings, since Slipway passes no
+      # flags of its own: the machine has no network, so every question has
+      # to be answered from its store, which holds the nixpkgs the fixtures
+      # are pinned to.
+      substitute = false;
+      connect-timeout = 1;
+      download-attempts = 1;
+      tarball-ttl = 31536000;
+    };
+    # A configuration.nix system finds nixpkgs on Nix's search path, as a
+    # real one does after `nix-channel --update`.
+    nix.nixPath = [ "nixpkgs=${nixpkgs}" ];
   };
 
   testScript =
@@ -121,6 +137,15 @@ pkgs.testers.runNixOSTest {
 
       def evaluates() -> None:
           machine.succeed("${evaluate}")
+
+
+      def packages() -> list[str]:
+          return machine.succeed("slipway list").split()
+
+
+      def checks() -> None:
+          report = machine.succeed("slipway check")
+          assert "Everything checks out." in report, report
 
 
       ${if builtins.isFunction testScript then testScript args else testScript}

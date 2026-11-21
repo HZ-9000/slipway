@@ -8,6 +8,7 @@ use clap::{Parser, Subcommand};
 use log::info;
 use slipway_core::{
     NixVersions,
+    managed::{Change, Outcome},
     package::PackageName,
     system::{ChannelSource, ConfigKind, System},
 };
@@ -43,16 +44,30 @@ enum Commands {
     Add {
         /// Name of the package, for example `firefox` or `python3Packages.requests`
         package: PackageName,
+        /// Where your system setup is, if it isn't in /etc/nixos
+        #[arg(long, value_name = "PATH")]
+        config: Option<PathBuf>,
     },
-    /// Remove a package from your system setup
+    /// Remove a package slipway added from your system setup
     Remove {
         /// Name of the package, for example `firefox`
         package: PackageName,
+        /// Where your system setup is, if it isn't in /etc/nixos
+        #[arg(long, value_name = "PATH")]
+        config: Option<PathBuf>,
     },
-    /// List the packages in your system setup
-    List,
+    /// List the packages slipway looks after, one per line
+    List {
+        /// Where your system setup is, if it isn't in /etc/nixos
+        #[arg(long, value_name = "PATH")]
+        config: Option<PathBuf>,
+    },
     /// Check your system setup for problems without changing anything
-    Check,
+    Check {
+        /// Where your system setup is, if it isn't in /etc/nixos
+        #[arg(long, value_name = "PATH")]
+        config: Option<PathBuf>,
+    },
     /// Set up slipway's own settings folder
     Configure {
         /// Create the settings folder (~/.config/slipway) and show what slipway can find
@@ -83,14 +98,10 @@ fn run(command: Commands) -> anyhow::Result<()> {
             print_nix_versions(&slipway_core::detect());
         }
         Commands::Connect { config, yes } => connect(config, yes)?,
-        Commands::Add { package } => slipway_core::add(&package)?,
-        Commands::Remove { package } => slipway_core::remove(&package)?,
-        Commands::List => {
-            for package in slipway_core::list()? {
-                println!("{package}");
-            }
-        }
-        Commands::Check => slipway_core::check()?,
+        Commands::Add { package, config } => add(config, &package)?,
+        Commands::Remove { package, config } => remove(config, &package)?,
+        Commands::List { config } => list(config)?,
+        Commands::Check { config } => check(config)?,
         Commands::Configure { init: _ } => {
             let config_directory = slipway_core::init_config_dir()?;
             println!("Settings folder:      {}", config_directory.display());
@@ -99,6 +110,80 @@ fn run(command: Commands) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+fn add(config: Option<PathBuf>, package: &PackageName) -> anyhow::Result<()> {
+    let system = slipway_core::detect_system(config)?;
+
+    match slipway_core::add(&system, package)? {
+        Change::AlreadyDone => println!("{package} is already one of your packages."),
+        Change::Made => {
+            println!("Added {package}.");
+            println!("Run `sudo nixos-rebuild switch` to install it.");
+        }
+    }
+    Ok(())
+}
+
+fn remove(config: Option<PathBuf>, package: &PackageName) -> anyhow::Result<()> {
+    let system = slipway_core::detect_system(config)?;
+
+    slipway_core::remove(&system, package)?;
+    println!("Removed {package}.");
+    println!("Run `sudo nixos-rebuild switch` to take it off this computer.");
+    Ok(())
+}
+
+fn list(config: Option<PathBuf>) -> anyhow::Result<()> {
+    let system = slipway_core::detect_system(config)?;
+    let packages = slipway_core::list(&system)?;
+
+    // Standard output stays a plain list of names, so it can be piped;
+    // there being none to list is something to say, not a name.
+    if packages.is_empty() {
+        eprintln!(
+            "slipway isn't looking after any packages yet. Add one with `slipway add <package>`."
+        );
+    }
+    for package in packages {
+        println!("{package}");
+    }
+    Ok(())
+}
+
+fn check(config: Option<PathBuf>) -> anyhow::Result<()> {
+    let system = slipway_core::detect_system(config)?;
+    let report = slipway_core::check(&system);
+
+    println!("Checking {}:", system.config.entry.display());
+    for check in report.checks() {
+        match &check.outcome {
+            Outcome::Passed => println!("  ok       {}", check.what),
+            Outcome::Failed(problem) => {
+                println!("  PROBLEM  {}", check.what);
+                for line in format!("{problem:#}").lines() {
+                    println!("           {line}");
+                }
+            }
+            Outcome::NotChecked => println!("  skipped  {}", check.what),
+        }
+    }
+    println!();
+
+    if report.passed() {
+        println!("Everything checks out.");
+        return Ok(());
+    }
+
+    let problems = report
+        .checks()
+        .iter()
+        .filter(|check| matches!(check.outcome, Outcome::Failed(_)))
+        .count();
+    anyhow::bail!(
+        "slipway found {problems} {} with your setup, as above",
+        if problems == 1 { "problem" } else { "problems" }
+    )
 }
 
 fn connect(config: Option<PathBuf>, yes: bool) -> anyhow::Result<()> {
@@ -125,7 +210,7 @@ fn connect(config: Option<PathBuf>, yes: bool) -> anyhow::Result<()> {
     if wiring.is_some() {
         println!(
             "Connected. Slipway's settings live in {}.",
-            slipway_core::config::MANAGED_DIR
+            slipway_core::config::managed_dir(&system.config.dir).display()
         );
     }
 

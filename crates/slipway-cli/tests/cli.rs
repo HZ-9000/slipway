@@ -1,5 +1,7 @@
 //! End-to-end tests driving the `slipway` binary.
 
+use std::fs;
+
 use assert_cmd::Command;
 use predicates::str::contains;
 use tempfile::TempDir;
@@ -263,20 +265,80 @@ fn add_and_remove_reject_an_invalid_package_name_in_plain_language() {
     }
 }
 
+/// A `configuration.nix` as `nixos-generate-config` writes one, which no
+/// one has connected to slipway yet.
+const NOT_CONNECTED: &str = r#"{ config, pkgs, ... }:
+
+{
+  imports = [ ];
+
+  system.stateVersion = "24.11";
+}
+"#;
+
+/// Pointed at a configuration that doesn't use slipway, every command that
+/// works on packages says the same thing, since none of them would reach
+/// the computer. Off NixOS they all say that instead, which is the first
+/// thing the user needs to hear.
 #[test]
-fn stubbed_commands_say_they_are_not_available_yet() {
+fn the_package_commands_say_what_to_do_before_connecting() {
+    let config = TempDir::new().unwrap();
+    fs::write(config.path().join("configuration.nix"), NOT_CONNECTED).unwrap();
+
     for args in [
         vec!["add", "firefox"],
-        vec!["remove", "python3Packages.requests"],
+        vec!["remove", "firefox"],
         vec!["list"],
-        vec!["check"],
     ] {
-        Command::cargo_bin("slipway")
+        let assert = Command::cargo_bin("slipway")
             .unwrap()
             .args(&args)
+            .args(["--config", config.path().to_str().unwrap()])
             .assert()
-            .code(1)
-            .stderr(contains("isn't available in this version of slipway yet"));
+            .code(1);
+
+        if running_on_nixos() {
+            assert.stderr(contains("run `slipway connect` first"));
+        } else {
+            assert.stderr(contains("Slipway only works on NixOS"));
+        }
+    }
+}
+
+#[test]
+fn check_lists_what_it_looked_at_and_fails_on_a_problem() {
+    let config = TempDir::new().unwrap();
+    fs::write(config.path().join("configuration.nix"), NOT_CONNECTED).unwrap();
+
+    let assert = Command::cargo_bin("slipway")
+        .unwrap()
+        .args(["check", "--config", config.path().to_str().unwrap()])
+        .assert()
+        .code(1);
+
+    if running_on_nixos() {
+        assert
+            .stdout(contains("Slipway's folder is where it should be"))
+            .stdout(contains("skipped"))
+            .stderr(contains("slipway found 1 problem"));
+    } else {
+        assert.stderr(contains("Slipway only works on NixOS"));
+    }
+}
+
+#[test]
+fn every_command_that_reads_the_system_takes_a_config_path() {
+    for subcommand in ["detect", "connect", "add", "remove", "list", "check"] {
+        let help = Command::cargo_bin("slipway")
+            .unwrap()
+            .args([subcommand, "--help"])
+            .output()
+            .unwrap();
+        let help = String::from_utf8_lossy(&help.stdout);
+        assert!(
+            help.contains("--config <PATH>"),
+            "`{subcommand} --help` should offer --config:\n{help}"
+        );
     }
 }
 

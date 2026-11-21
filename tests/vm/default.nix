@@ -39,6 +39,36 @@ in
       connects()
       machine.succeed("test -f /etc/nixos/slipway/flake.nix")
       evaluates()
+
+      # Packages: what slipway keeps, what it writes, and what Nix makes of
+      # the two together.
+      assert packages() == []
+      added = machine.succeed("slipway add hello")
+      assert "Added hello" in added, added
+      assert packages() == ["hello"]
+      assert "pkgs.hello" in machine.succeed("cat /etc/nixos/slipway/default.nix")
+      checks()
+
+      again = machine.succeed("slipway add hello")
+      assert "already one of your packages" in again, again
+      assert packages() == ["hello"]
+
+      # A name the channel doesn't have is refused, and nothing is written.
+      before = machine.succeed("cat /etc/nixos/slipway/default.nix")
+      refused = machine.fail("slipway add fierfox 2>&1")
+      assert "no package called `fierfox`" in refused, refused
+      assert packages() == ["hello"]
+      assert machine.succeed("cat /etc/nixos/slipway/default.nix") == before
+
+      removed = machine.succeed("slipway remove hello")
+      assert "Removed hello" in removed, removed
+      assert packages() == []
+      assert "systemPackages = [ ];" in machine.succeed("cat /etc/nixos/slipway/default.nix")
+      checks()
+
+      # Slipway only removes what it put there; the rest is the user's own.
+      theirs = machine.fail("slipway remove vim 2>&1")
+      assert "isn't looking after `vim`" in theirs, theirs
     '';
   };
 
@@ -65,6 +95,18 @@ in
         connects()
         machine.fail("test -e /etc/nixos/slipway/flake.nix")
         evaluates()
+
+        # Nix's older commands answer the same questions on a machine with
+        # none of the new command line turned on.
+        assert packages() == []
+        machine.succeed("slipway add hello")
+        assert packages() == ["hello"]
+        assert "pkgs.hello" in machine.succeed("cat /etc/nixos/slipway/default.nix")
+        checks()
+
+        refused = machine.fail("slipway add fierfox 2>&1")
+        assert "no package called `fierfox`" in refused, refused
+        assert packages() == ["hello"]
       '';
   };
 
@@ -105,6 +147,15 @@ in
       assert "doesn't need changing" in output, output
       assert machine.succeed("cat /etc/nixos/configuration.nix /etc/nixos/slipway/default.nix") == before
       evaluates()
+
+      # A folder Slipway wrote on an older channel is still its own to
+      # change, and changing it brings the channel up to date.
+      assert packages() == []
+      machine.succeed("slipway add hello")
+      assert packages() == ["hello"]
+      written = machine.succeed("cat /etc/nixos/slipway/default.nix")
+      assert "pkgs.hello" in written, written
+      assert "nixos-24.11" not in written, written
     '';
   };
 }

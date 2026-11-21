@@ -1,5 +1,7 @@
 use std::{fmt, str::FromStr};
 
+use anyhow::Result;
+
 /// A validated package name, such as `firefox` or `python3Packages.requests`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PackageName(String);
@@ -48,6 +50,30 @@ impl FromStr for PackageName {
 
         Ok(Self(name.to_owned()))
     }
+}
+
+/// What a package set holds under a name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Holds {
+    /// A package, which Slipway can install.
+    Package,
+    /// Something that isn't a package, such as a part of one
+    /// (`firefox.meta`) or a collection of them (`python3Packages`).
+    SomethingElse,
+    /// Nothing at all: the name is a typo, or names a package that only
+    /// another channel has.
+    Nothing,
+}
+
+/// Somewhere Slipway can check a package name, such as the set of packages
+/// the user's own system is built from.
+pub trait PackageSet {
+    /// What this set holds under `package`.
+    ///
+    /// A name the set has but can't work out — an unfree package, say —
+    /// counts as [`Holds::Package`]: the name is plainly one the set knows,
+    /// and whatever is wrong with it is explained by the rebuild itself.
+    fn holds(&self, package: &PackageName) -> Result<Holds>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
