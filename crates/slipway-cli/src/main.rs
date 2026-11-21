@@ -1,4 +1,8 @@
-use std::{path::PathBuf, process::ExitCode};
+use std::{
+    io::{self, BufRead as _, Write as _},
+    path::PathBuf,
+    process::ExitCode,
+};
 
 use clap::{Parser, Subcommand};
 use log::info;
@@ -24,6 +28,16 @@ enum Commands {
         /// Where your system setup is, if it isn't in /etc/nixos
         #[arg(long, value_name = "PATH")]
         config: Option<PathBuf>,
+    },
+    /// Connect your system setup to slipway, so the software you add with slipway
+    /// gets installed. Shows what it adds and asks before changing anything
+    Connect {
+        /// Where your system setup is, if it isn't in /etc/nixos
+        #[arg(long, value_name = "PATH")]
+        config: Option<PathBuf>,
+        /// Make the change without asking first
+        #[arg(short, long)]
+        yes: bool,
     },
     /// Add a package (a piece of software) to your system setup
     Add {
@@ -68,6 +82,7 @@ fn run(command: Commands) -> anyhow::Result<()> {
             print_system(&slipway_core::detect_system(config)?);
             print_nix_versions(&slipway_core::detect());
         }
+        Commands::Connect { config, yes } => connect(config, yes)?,
         Commands::Add { package } => slipway_core::add(&package)?,
         Commands::Remove { package } => slipway_core::remove(&package)?,
         Commands::List => {
@@ -84,6 +99,54 @@ fn run(command: Commands) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+fn connect(config: Option<PathBuf>, yes: bool) -> anyhow::Result<()> {
+    let system = slipway_core::detect_system(config)?;
+    let wiring = slipway_core::plan_connection(&system)?;
+
+    match &wiring {
+        None => println!(
+            "{} already uses slipway, so it doesn't need changing.",
+            system.config.entry.display()
+        ),
+        Some(wiring) => {
+            println!("Slipway will add this to {}:\n", wiring.path.display());
+            print!("{}", wiring.diff());
+            println!();
+            if !yes && !confirm("Make this change?")? {
+                println!("Nothing was changed.");
+                return Ok(());
+            }
+        }
+    }
+
+    slipway_core::connect(&system, wiring.as_ref())?;
+    if wiring.is_some() {
+        println!(
+            "Connected. Slipway's settings live in {}.",
+            slipway_core::config::MANAGED_DIR
+        );
+    }
+
+    // Nix only sees the files git tracks in a configuration kept in git.
+    if system.config.dir.join(".git").exists() {
+        println!(
+            "Your system setup is kept in git, so run `git -C {} add slipway` before rebuilding.",
+            system.config.dir.display()
+        );
+    }
+    Ok(())
+}
+
+/// Asks a yes/no question, taking anything but yes (including no answer at
+/// all) as no.
+fn confirm(question: &str) -> anyhow::Result<bool> {
+    print!("{question} [y/N] ");
+    io::stdout().flush()?;
+    let mut answer = String::new();
+    io::stdin().lock().read_line(&mut answer)?;
+    Ok(matches!(answer.trim().to_lowercase().as_str(), "y" | "yes"))
 }
 
 fn print_system(system: &System) {

@@ -57,12 +57,23 @@ in
   # building from a flake must.
   flakes ? builtins.pathExists (fixture + "/flake.nix"),
   # Python run after the fixture is in place. `detect()` runs
-  # `slipway detect` and returns its report as {label: value}.
+  # `slipway detect` and returns its report as {label: value};
+  # `connects()` runs `slipway connect` twice, checking the second run finds
+  # nothing to do; `evaluates()` checks NixOS can evaluate /etc/nixos
+  # (without building it).
   testScript,
 }:
 
 let
   etcNixos = prepare name fixture;
+
+  # Evaluating, unlike building, needs nothing from the network: only the
+  # nixpkgs source, which the VM is given below.
+  evaluate =
+    if flakes then
+      "nix eval --offline --raw /etc/nixos#nixosConfigurations.nixos.config.system.build.toplevel.drvPath"
+    else
+      "nix-instantiate '<nixpkgs/nixos>' -A system -I nixpkgs=${nixpkgs} -I nixos-config=/etc/nixos/configuration.nix";
 in
 
 pkgs.testers.runNixOSTest {
@@ -70,7 +81,12 @@ pkgs.testers.runNixOSTest {
 
   nodes.machine = {
     environment.systemPackages = [ slipway ];
-    virtualisation.additionalPaths = [ etcNixos ];
+    virtualisation.additionalPaths = [
+      etcNixos
+      nixpkgs.outPath
+    ];
+    # Evaluating a whole NixOS system needs more than the default 1 GiB.
+    virtualisation.memorySize = 3072;
     nix.settings.experimental-features = lib.mkForce (
       lib.optionals flakes [
         "nix-command"
@@ -93,6 +109,18 @@ pkgs.testers.runNixOSTest {
               label, _, value = line.partition(":")
               report[label.strip()] = value.strip()
           return report
+
+
+      def connects() -> None:
+          first = machine.succeed("slipway connect --yes")
+          assert "Connected." in first, first
+          machine.succeed("test -f /etc/nixos/slipway/default.nix")
+          again = machine.succeed("slipway connect --yes")
+          assert "doesn't need changing" in again, again
+
+
+      def evaluates() -> None:
+          machine.succeed("${evaluate}")
 
 
       ${if builtins.isFunction testScript then testScript args else testScript}

@@ -29,7 +29,15 @@ fn help_lists_every_subcommand() {
     assert!(output.status.success());
     let help = String::from_utf8_lossy(&output.stdout);
 
-    for subcommand in ["detect", "add", "remove", "list", "check", "configure"] {
+    for subcommand in [
+        "detect",
+        "connect",
+        "add",
+        "remove",
+        "list",
+        "check",
+        "configure",
+    ] {
         assert!(
             help.contains(subcommand),
             "--help is missing `{subcommand}`:\n{help}"
@@ -43,6 +51,7 @@ fn help_avoids_unexplained_nix_jargon() {
     for args in [
         vec!["--help"],
         vec!["detect", "--help"],
+        vec!["connect", "--help"],
         vec!["add", "--help"],
         vec!["remove", "--help"],
         vec!["list", "--help"],
@@ -158,6 +167,22 @@ fn configure_init_probes_both_nix_sources() {
         .success()
         .stdout(contains("Nix (on PATH):"))
         .stdout(contains("Nix (store):"));
+}
+
+/// Slipway asks the `nix` command for everything, so a machine without one
+/// has to be told that plainly rather than shown a crash.
+#[test]
+fn says_which_nix_sources_are_unreachable_without_nix_on_path() {
+    let home = TempDir::new().unwrap();
+
+    slipway_with_home(&home)
+        .env("PATH", "")
+        .args(["configure", "--init"])
+        .assert()
+        .success()
+        .stdout(contains("Nix (on PATH):        unavailable"))
+        .stdout(contains("is nix on PATH?"))
+        .stdout(contains("Nix (store):          unavailable"));
 }
 
 #[test]

@@ -35,6 +35,10 @@ in
       assert report["Channel"] == "${channel} (unstable, from flake.lock)", report
       assert report["nix-command"] == "enabled", report
       assert report["flakes"] == "enabled", report
+
+      connects()
+      machine.succeed("test -f /etc/nixos/slipway/flake.nix")
+      evaluates()
     '';
   };
 
@@ -49,6 +53,18 @@ in
         assert report["Channel"] == "${releaseChannel nodes} (stable, from the NixOS version)", report
         assert report["nix-command"] == "not enabled", report
         assert report["flakes"] == "not enabled", report
+
+        # Answering no leaves everything as it was.
+        before = machine.succeed("cat /etc/nixos/configuration.nix")
+        declined = machine.succeed("echo n | slipway connect")
+        assert "+      ./slipway" in declined, declined
+        assert "Nothing was changed." in declined, declined
+        assert machine.succeed("cat /etc/nixos/configuration.nix") == before
+        machine.fail("test -e /etc/nixos/slipway")
+
+        connects()
+        machine.fail("test -e /etc/nixos/slipway/flake.nix")
+        evaluates()
       '';
   };
 
@@ -61,6 +77,9 @@ in
         report = detect()
         assert report["System config"] == "/etc/nixos/configuration.nix (configuration.nix, no flake)", report
         assert report["Channel"] == "${releaseChannel nodes} (stable, from the NixOS version)", report
+
+        connects()
+        evaluates()
       '';
   };
 
@@ -71,6 +90,21 @@ in
       report = detect()
       assert report["System config"] == "/etc/nixos/flake.nix (flake)", report
       assert report["Channel"] == "${channel} (unstable, from flake.lock)", report
+
+      connects()
+      evaluates()
+    '';
+  };
+
+  vm-already-connected = mkSlipwayTest {
+    name = "already-connected";
+    fixture = ./fixtures/already-connected;
+    testScript = ''
+      before = machine.succeed("cat /etc/nixos/configuration.nix /etc/nixos/slipway/default.nix")
+      output = machine.succeed("slipway connect --yes")
+      assert "doesn't need changing" in output, output
+      assert machine.succeed("cat /etc/nixos/configuration.nix /etc/nixos/slipway/default.nix") == before
+      evaluates()
     '';
   };
 }
