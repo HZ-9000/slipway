@@ -326,6 +326,28 @@ fn check_lists_what_it_looked_at_and_fails_on_a_problem() {
     }
 }
 
+/// A problem Nix reported is explained in plain language; its own words are
+/// there for whoever asks, which is what `--details` is for.
+#[test]
+fn check_offers_to_show_what_nix_said() {
+    let help = Command::cargo_bin("slipway")
+        .unwrap()
+        .args(["check", "--help"])
+        .output()
+        .unwrap();
+    let help = String::from_utf8_lossy(&help.stdout);
+    assert!(help.contains("--details"), "{help}");
+
+    let config = TempDir::new().unwrap();
+    fs::write(config.path().join("configuration.nix"), NOT_CONNECTED).unwrap();
+    Command::cargo_bin("slipway")
+        .unwrap()
+        .args(["check", "--details", "--config"])
+        .arg(config.path())
+        .assert()
+        .code(1);
+}
+
 #[test]
 fn every_command_that_reads_the_system_takes_a_config_path() {
     for subcommand in ["detect", "connect", "add", "remove", "list", "check"] {

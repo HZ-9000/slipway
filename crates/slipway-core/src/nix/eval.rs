@@ -19,7 +19,10 @@ use std::{
 use anyhow::{Context as _, Result};
 
 use crate::{
-    nix::cli::{self, Failed, Why},
+    nix::{
+        cli::{self, Failed, Why},
+        explain::{self, Explained},
+    },
     package::{Holds, PackageName, PackageSet},
     system::{ConfigKind, System},
 };
@@ -69,6 +72,14 @@ impl Failure {
         }
     }
 
+    /// What went wrong in plain language: what it affects and what to try
+    /// next, with Nix's own words left on [`Failure::output`] for a
+    /// front-end that offers to show them.
+    #[must_use]
+    pub fn explain(&self) -> Explained {
+        explain::of(self)
+    }
+
     /// A machine that hasn't turned `feature` on, said without running
     /// anything: Slipway reads Nix's own settings, so it needn't ask.
     fn feature_off(step: Step, feature: &str) -> Self {
@@ -84,23 +95,10 @@ impl Failure {
 }
 
 impl fmt::Display for Failure {
+    /// The one line of it that matters. [`Failure::explain`] says what to
+    /// do about it, and `output` is everything Nix said.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.why {
-            Why::FeatureOff { feature } => write!(
-                f,
-                "{} needs Nix's `{feature}` feature, which isn't turned on",
-                self.step
-            ),
-            Why::CantRun => write!(f, "Nix couldn't be run: {}", self.output),
-            Why::Refused => match &self.command {
-                Some(command) => write!(
-                    f,
-                    "Nix couldn't finish {}. This is what `{command}` said:\n{}",
-                    self.step, self.output
-                ),
-                None => write!(f, "Nix couldn't finish {}:\n{}", self.step, self.output),
-            },
-        }
+        self.explain().fmt(f)
     }
 }
 
@@ -198,6 +196,11 @@ fn download(line: &str) -> Option<String> {
     Some(size.trim().to_owned())
 }
 
+/// Checking a configuration mustn't change it, and a flake whose lock file
+/// has fallen behind is one Nix would otherwise bring up to date on the
+/// spot — in a folder that usually belongs to root.
+const READ_ONLY: &str = "--no-write-lock-file";
+
 /// How Slipway names the user's system configuration to Nix.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Target {
@@ -237,7 +240,12 @@ impl Target {
         let output = match self {
             Self::Flake { dir, machine } => cli::try_run(
                 "nix",
-                &["eval", "--raw", &toplevel(dir, machine, ".drvPath")],
+                &[
+                    "eval",
+                    READ_ONLY,
+                    "--raw",
+                    &toplevel(dir, machine, ".drvPath"),
+                ],
             ),
             Self::Channels { entry } => {
                 let config = nixos_config(entry);
@@ -264,6 +272,7 @@ impl Target {
                     "build",
                     "--dry-run",
                     "--no-link",
+                    READ_ONLY,
                     &toplevel(dir, machine, ""),
                 ],
             ),

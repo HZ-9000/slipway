@@ -36,7 +36,19 @@ anything, using the same package set the computer is built from, so a typo
 is refused there and then rather than left for the next rebuild to find.
 `slipway check` goes over the lot: the folder, the list, the Nix generated
 from it, the line that brings it in, and whether Nix can read and build the
-whole configuration.
+whole configuration. It changes nothing, and says what a rebuild would
+build. A problem it finds is reported as what went wrong, what it affects
+and what to try next:
+
+```
+  PROBLEM  Nix can read your system setup
+           `networking.hostName` is set twice in the same file
+           Affects: /etc/nixos/configuration.nix, line 11
+           Try:     take one of the two out; Nix won't choose between them.
+```
+
+Nix's own explanation is kept word for word behind `slipway check --details`,
+for a problem Slipway doesn't recognise or a user who wants the stack trace.
 
 All logic lives in the `slipway-core` crate (`crates/slipway-core`); the
 `slipway` binary is a thin CLI over it so the TUI and GUI can share it.

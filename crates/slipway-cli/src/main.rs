@@ -9,6 +9,7 @@ use log::info;
 use slipway_core::{
     NixVersions,
     managed::{Change, Outcome},
+    nix::{eval::Failure, explain::Explained},
     package::PackageName,
     system::{ChannelSource, ConfigKind, System},
 };
@@ -67,6 +68,9 @@ enum Commands {
         /// Where your system setup is, if it isn't in /etc/nixos
         #[arg(long, value_name = "PATH")]
         config: Option<PathBuf>,
+        /// Also show everything Nix said about any problem, word for word
+        #[arg(long)]
+        details: bool,
     },
     /// Set up slipway's own settings folder
     Configure {
@@ -101,7 +105,7 @@ fn run(command: Commands) -> anyhow::Result<()> {
         Commands::Add { package, config } => add(config, &package)?,
         Commands::Remove { package, config } => remove(config, &package)?,
         Commands::List { config } => list(config)?,
-        Commands::Check { config } => check(config)?,
+        Commands::Check { config, details } => check(config, details)?,
         Commands::Configure { init: _ } => {
             let config_directory = slipway_core::init_config_dir()?;
             println!("Settings folder:      {}", config_directory.display());
@@ -151,9 +155,10 @@ fn list(config: Option<PathBuf>) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn check(config: Option<PathBuf>) -> anyhow::Result<()> {
+fn check(config: Option<PathBuf>, details: bool) -> anyhow::Result<()> {
     let system = slipway_core::detect_system(config)?;
     let report = slipway_core::check(&system);
+    let mut nix_had_more_to_say = false;
 
     println!("Checking {}:", system.config.entry.display());
     for check in report.checks() {
@@ -164,8 +169,18 @@ fn check(config: Option<PathBuf>) -> anyhow::Result<()> {
             },
             Outcome::Failed(problem) => {
                 println!("  PROBLEM  {}", check.what);
-                for line in format!("{problem:#}").lines() {
-                    println!("           {line}");
+                // A problem Nix reported comes with what it affects and
+                // something to try; Slipway's own say so in one sentence.
+                match problem.downcast_ref::<Failure>() {
+                    Some(failure) => {
+                        print_explained(&failure.explain());
+                        if details {
+                            print_quoting("Nix said", &failure.output);
+                        } else if !failure.output.is_empty() {
+                            nix_had_more_to_say = true;
+                        }
+                    }
+                    None => print_indented(&format!("{problem:#}")),
                 }
             }
             Outcome::NotChecked => println!("  skipped  {}", check.what),
@@ -178,6 +193,11 @@ fn check(config: Option<PathBuf>) -> anyhow::Result<()> {
         return Ok(());
     }
 
+    if nix_had_more_to_say {
+        println!("Run `slipway check --details` to see everything Nix said.");
+        println!();
+    }
+
     let problems = report
         .checks()
         .iter()
@@ -187,6 +207,31 @@ fn check(config: Option<PathBuf>) -> anyhow::Result<()> {
         "slipway found {problems} {} with your setup, as above",
         if problems == 1 { "problem" } else { "problems" }
     )
+}
+
+/// Prints what went wrong, what it affects and what to try, each under the
+/// check it came from.
+fn print_explained(explained: &Explained) {
+    print_indented(&explained.problem);
+    if let Some(affects) = &explained.affects {
+        print_indented(&format!("Affects: {affects}"));
+    }
+    print_indented(&format!("Try:     {}", explained.next_step));
+}
+
+fn print_indented(text: &str) {
+    for line in text.lines() {
+        println!("           {line}");
+    }
+}
+
+/// Prints something said elsewhere, marked off so it's clear whose words
+/// they are.
+fn print_quoting(whose: &str, said: &str) {
+    print_indented(&format!("{whose}:"));
+    for line in said.lines() {
+        println!("             | {line}");
+    }
 }
 
 fn connect(config: Option<PathBuf>, yes: bool) -> anyhow::Result<()> {
