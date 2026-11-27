@@ -107,6 +107,26 @@ in
         refused = machine.fail("slipway add fierfox 2>&1")
         assert "no package called `fierfox`" in refused, refused
         assert packages() == ["hello"]
+
+        # A setting that doesn't exist is explained rather than dumped, and
+        # Nix's own words are kept for whoever asks for them.
+        machine.succeed("cp /etc/nixos/configuration.nix /tmp/configuration.nix")
+        machine.succeed(
+            "sed -i '0,/^}/s/^}/  services.notarealservice.enable = true;\\n}/' /etc/nixos/configuration.nix"
+        )
+        explained = machine.fail("slipway check 2>&1")
+        assert "a setting called `services.notarealservice`" in explained, explained
+        assert "Try:" in explained, explained
+        assert "search.nixos.org/options" in explained, explained
+        assert "while evaluating" not in explained, explained
+        assert "slipway check --details" in explained, explained
+
+        detailed = machine.fail("slipway check --details 2>&1")
+        assert "Nix said:" in detailed, detailed
+        assert "does not exist" in detailed, detailed
+
+        machine.succeed("cp /tmp/configuration.nix /etc/nixos/configuration.nix")
+        checks()
       '';
   };
 

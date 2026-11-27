@@ -59,7 +59,7 @@ fn summarised(command: &str, args: &[&str]) -> Result<String> {
                 "`{}` needs Nix's `{feature}` feature, which isn't turned on",
                 failed.command
             ),
-            Why::Refused => anyhow!("`{}` failed: {}", failed.command, failed.first_line()),
+            Why::Refused => anyhow!("`{}` failed: {}", failed.command, failed.cause()),
         }),
     }
 }
@@ -89,16 +89,10 @@ pub struct Failed {
 }
 
 impl Failed {
-    /// The first line of Nix's output that says anything.
+    /// The line of Nix's output that says what actually went wrong.
     #[must_use]
-    pub fn first_line(&self) -> &str {
-        // Nix puts `error:` on a line of its own before a long explanation,
-        // so the first line that says anything is the first one past it.
-        self.output
-            .lines()
-            .map(|line| line.trim().trim_start_matches("error:").trim())
-            .find(|line| !line.is_empty())
-            .unwrap_or("it printed no explanation")
+    pub fn cause(&self) -> &str {
+        super::explain::cause(&self.output)
     }
 }
 
